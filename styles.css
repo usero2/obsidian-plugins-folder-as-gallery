@@ -1,0 +1,171 @@
+.folder-gallery-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  color: var(--text-normal);
+  background-color: var(--background-modifier-form-field);
+  border-radius: var(--radius-s);
+  opacity: 1;
+  flex-shrink: 0; /* Prevent squishing */
+  margin-left: auto; /* Push to the right */
+  margin-right: 4px; /* Slight gap from the right edge or other items */
+}
+
+/* Force Right Mode */
+.folder-gallery-icon.force-right {
+  order: 999; /* Standard flexbox force to end */
+  margin-right: 2px;
+}
+
+/* If the other plugin uses absolute positioning, order might not be enough.
+   We can also try to force it via absolute positioning again if order fails, 
+   but order is the safest first step for flex conflicts. */
+
+.nav-folder-title {
+  display: flex; /* Enable flex layout to align items in a row */
+  align-items: center;
+  position: relative;
+}
+
+.folder-gallery-icon:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+  border-radius: var(--radius-s);
+}
+
+.gallery-view-content-container {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.gallery-search-container {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--background-primary);
+  padding: 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.gallery-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-modifier-form-field);
+  color: var(--text-normal);
+}
+
+/* Gallery View Styles */
+.gallery-view-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 200px), 1fr));
+  grid-auto-rows: max-content;
+  align-content: start; /* Fixes large gaps between rows */
+  gap: 16px;
+  padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.gallery-item {
+  position: relative;
+  width: 100%;
+  padding-bottom: 100%; /* Fallback for aspect-ratio */
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-m);
+  overflow: hidden;
+  background-color: var(--background-secondary);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: block; /* Avoid flex stretching issues */
+}
+
+.gallery-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.gallery-item img,
+.gallery-item video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.gallery-item-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-modifier-form-field);
+  color: var(--text-muted);
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.gallery-item-name {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  color: white;
+  padding: 20px 8px 8px;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 1; /* Always show filename */
+  z-index: 5;
+}
+
+.gallery-item-md-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 10px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Make markdown elements smaller inside the thumbnail */
+.gallery-item-md-preview h1, 
+.gallery-item-md-preview h2, 
+.gallery-item-md-preview h3 {
+  font-size: 12px;
+  margin-top: 0;
+}
+
+.gallery-item-md-preview p {
+  margin: 4px 0;
+}
+
+.gallery-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  padding: 2rem;
+  text-align: center;
+}

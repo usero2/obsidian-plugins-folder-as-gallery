@@ -1,0 +1,13 @@
+{
+  "id": "folder-as-gallery",
+  "name": "Folder as Gallery",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "View folders as a media gallery.",
+	"author": "usero2-endofday",
+	"authorUrl": "https://github.com/usero2",
+	"fundingUrl": {
+		"Buy me a Coffee": "https://buymeacoffee.com/endofday"
+	},
+	"isDesktopOnly": false
+}
