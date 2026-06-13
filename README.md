@@ -36,6 +36,18 @@ You can customize the plugin behavior in **Settings > Community Plugins > Folder
 3. Place the downloaded files into that folder.
 4. Reload Obsidian and enable the plugin in **Settings > Community Plugins**.
 
+## 📝 Release Notes
+
+### v1.0.1
+- **New Feature:** Added a comprehensive Right-Click Context Menu for gallery cards!
+  - Instantly see a list of `.md` files containing the image and click to navigate.
+  - Advanced "Copy path" options: Obsidian URL, Vault Folder path, and System Root path.
+  - Native system integration: Open in Default App, Show in System Explorer.
+  - File management directly from the gallery: Reveal in Navigation, Rename, and Delete.
+- **Bug Fix:** Fixed an issue where toggling the plugin from the Obsidian settings would cause the Settings modal to forcefully close.
+
+![](images/Obsidian_4a5A9VyL2Q.png)
+
 ## ❤️ Support & Donate
 
 If this plugin has improved your Obsidian workflow, saved you time, or you just want to support its continued development, please consider donating! 

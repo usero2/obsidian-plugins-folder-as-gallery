@@ -1,7 +1,7 @@
 {
   "id": "folder-as-gallery",
   "name": "Folder as Gallery",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "0.15.0",
   "description": "View folders as a media gallery.",
 	"author": "usero2-endofday",

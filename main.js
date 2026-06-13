@@ -5,6 +5,63 @@ const DEFAULT_SETTINGS = {
     forceRight: true,
 };
 
+class RenameModal extends obsidian.Modal {
+    constructor(app, file, view) {
+        super(app);
+        this.file = file;
+        this.view = view;
+    }
+    onOpen() {
+        const {contentEl} = this;
+        contentEl.createEl("h2", {text: `Rename ${this.file.name}`});
+        
+        const inputContainer = contentEl.createDiv({cls: "gallery-rename-container"});
+        inputContainer.style.display = "flex";
+        inputContainer.style.flexDirection = "column";
+        inputContainer.style.gap = "10px";
+
+        const input = inputContainer.createEl("input", {type: "text", value: this.file.basename});
+        input.style.width = "100%";
+        
+        const btnContainer = inputContainer.createDiv();
+        btnContainer.style.display = "flex";
+        btnContainer.style.justifyContent = "flex-end";
+        btnContainer.style.gap = "10px";
+
+        const cancelBtn = btnContainer.createEl("button", {text: "Cancel"});
+        const renameBtn = btnContainer.createEl("button", {text: "Rename", cls: "mod-cta"});
+
+        cancelBtn.onclick = () => this.close();
+        renameBtn.onclick = async () => {
+            const newName = input.value.trim();
+            if (newName && newName !== this.file.basename) {
+                const newPath = this.file.parent.path + "/" + newName + "." + this.file.extension;
+                await this.app.fileManager.renameFile(this.file, newPath);
+                if (this.view) {
+                    this.view.renderGallery();
+                }
+            }
+            this.close();
+        };
+
+        input.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                renameBtn.click();
+            } else if (e.key === 'Escape') {
+                cancelBtn.click();
+            }
+        });
+
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 100);
+    }
+    onClose() {
+        this.contentEl.empty();
+    }
+}
+
 class GalleryView extends obsidian.ItemView {
     constructor(leaf, plugin) {
         super(leaf);
@@ -199,6 +256,132 @@ class GalleryView extends obsidian.ItemView {
                 const leaf = this.app.workspace.getLeaf(false);
                 await leaf.openFile(file);
             });
+
+            itemEl.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const menu = new obsidian.Menu();
+
+                // 1. List of md file names that contain this image
+                const resolvedLinks = this.app.metadataCache.resolvedLinks;
+                let hasBacklinks = false;
+                for (const sourcePath in resolvedLinks) {
+                    if (file.path in resolvedLinks[sourcePath]) {
+                        const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
+                        if (sourceFile instanceof obsidian.TFile && sourceFile.extension === 'md') {
+                            hasBacklinks = true;
+                            menu.addItem((item) => {
+                                item.setTitle(`📄 ${sourceFile.basename}`)
+                                    .setIcon("file-text")
+                                    .onClick(async () => {
+                                        const leaf = this.app.workspace.getLeaf(false);
+                                        await leaf.openFile(sourceFile);
+                                    });
+                            });
+                        }
+                    }
+                }
+
+                if (hasBacklinks) {
+                    menu.addSeparator();
+                }
+
+                // 2. Copy path submenu
+                menu.addItem((item) => {
+                    item.setTitle("Copy path");
+                    item.setIcon("link");
+                    if (typeof item.setSubmenu === "function") {
+                        const submenu = item.setSubmenu();
+                        submenu.addItem((subItem) => {
+                            subItem.setTitle("as Obsidian URL")
+                                .setIcon("link")
+                                .onClick(() => {
+                                    const url = `obsidian://open?vault=${encodeURIComponent(this.app.vault.getName())}&file=${encodeURIComponent(file.path)}`;
+                                    navigator.clipboard.writeText(url);
+                                });
+                        });
+                        submenu.addItem((subItem) => {
+                            subItem.setTitle("from vault folder")
+                                .setIcon("folder")
+                                .onClick(() => {
+                                    navigator.clipboard.writeText(file.path);
+                                });
+                        });
+                        submenu.addItem((subItem) => {
+                            subItem.setTitle("from system root")
+                                .setIcon("hard-drive")
+                                .onClick(() => {
+                                    const adapter = this.app.vault.adapter;
+                                    const require = window.require;
+                                    const path = require ? require('path') : null;
+                                    let fullPath = "";
+                                    if (path && adapter.getBasePath) {
+                                        fullPath = path.join(adapter.getBasePath(), file.path);
+                                    } else {
+                                        fullPath = adapter.getBasePath ? adapter.getBasePath() + "/" + file.path : file.path;
+                                    }
+                                    navigator.clipboard.writeText(fullPath);
+                                });
+                        });
+                    } else {
+                        // Fallback for older Obsidian versions
+                        item.onClick(() => {
+                            navigator.clipboard.writeText(file.path);
+                        });
+                    }
+                });
+
+                menu.addSeparator();
+
+                // 3. System actions
+                menu.addItem((item) => {
+                    item.setTitle("Open in default app")
+                        .setIcon("arrow-up-right")
+                        .onClick(() => {
+                            this.app.openWithDefaultApp(file.path);
+                        });
+                });
+
+                menu.addItem((item) => {
+                    item.setTitle("Show in system explorer")
+                        .setIcon("folder")
+                        .onClick(() => {
+                            this.app.showInFolder(file.path);
+                        });
+                });
+
+                menu.addItem((item) => {
+                    item.setTitle("Reveal file in navigation")
+                        .setIcon("compass")
+                        .onClick(() => {
+                            const explorerPlugin = this.app.internalPlugins.getPluginById("file-explorer");
+                            if (explorerPlugin && explorerPlugin.instance) {
+                                explorerPlugin.instance.revealInFolder(file);
+                            }
+                        });
+                });
+
+                menu.addSeparator();
+
+                // 4. Rename & Delete
+                menu.addItem((item) => {
+                    item.setTitle("Rename...")
+                        .setIcon("pencil")
+                        .onClick(() => {
+                            new RenameModal(this.app, file, this).open();
+                        });
+                });
+
+                menu.addItem((item) => {
+                    item.setTitle("Delete")
+                        .setIcon("trash")
+                        .onClick(async () => {
+                            await this.app.vault.trash(file, true);
+                            this.renderGallery();
+                        });
+                });
+
+                menu.showAtMouseEvent(e);
+            });
         }
 
         // Setup filter logic
@@ -286,8 +469,8 @@ class FolderAsGalleryPlugin extends obsidian.Plugin {
         if (this.observer) {
             this.observer.disconnect();
         }
-        // Safely close any open gallery views to prevent Obsidian from crashing
-        this.app.workspace.detachLeavesOfType("gallery-view");
+        // Obsidian handles unknown view types natively, detaching here causes settings tab to crash
+        // this.app.workspace.detachLeavesOfType("gallery-view");
     }
 
     async loadSettings() {
