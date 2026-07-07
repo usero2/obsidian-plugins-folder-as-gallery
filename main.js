@@ -3,6 +3,8 @@ const obsidian = require('obsidian');
 const DEFAULT_SETTINGS = {
     thumbnailSize: 200,
     forceRight: true,
+    hideNoImages: false,
+    clickToZoom: false,
 };
 
 class RenameModal extends obsidian.Modal {
@@ -160,6 +162,15 @@ class GalleryView extends obsidian.ItemView {
         const mediaExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'];
         const videoExtensions = ['mp4', 'webm', 'mov'];
 
+        const getVisibleImages = () => {
+            const query = searchInput.value.toLowerCase();
+            return allFiles.filter(f => {
+                const isImg = mediaExtensions.includes(f.extension.toLowerCase());
+                if (!isImg) return false;
+                return f.name.toLowerCase().includes(query);
+            });
+        };
+
         for (const file of allFiles) {
             const itemEl = gridEl.createDiv("gallery-item");
             itemEl.setAttribute("data-filename", file.name.toLowerCase());
@@ -251,136 +262,20 @@ class GalleryView extends obsidian.ItemView {
             const nameEl = itemEl.createDiv("gallery-item-name");
             nameEl.setText(file.name);
 
-            itemEl.addEventListener('click', async () => {
-                // Open file in Obsidian
-                const leaf = this.app.workspace.getLeaf(false);
-                await leaf.openFile(file);
+            itemEl.addEventListener('click', async (e) => {
+                if (this.plugin.settings.clickToZoom && isImage) {
+                    e.preventDefault();
+                    const visibleImages = getVisibleImages();
+                    this.openLightbox(file, visibleImages);
+                } else {
+                    // Open file in Obsidian
+                    const leaf = this.app.workspace.getLeaf(false);
+                    await leaf.openFile(file);
+                }
             });
 
             itemEl.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                const menu = new obsidian.Menu();
-
-                // 1. List of md file names that contain this image
-                const resolvedLinks = this.app.metadataCache.resolvedLinks;
-                let hasBacklinks = false;
-                for (const sourcePath in resolvedLinks) {
-                    if (file.path in resolvedLinks[sourcePath]) {
-                        const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
-                        if (sourceFile instanceof obsidian.TFile && sourceFile.extension === 'md') {
-                            hasBacklinks = true;
-                            menu.addItem((item) => {
-                                item.setTitle(`📄 ${sourceFile.basename}`)
-                                    .setIcon("file-text")
-                                    .onClick(async () => {
-                                        const leaf = this.app.workspace.getLeaf(false);
-                                        await leaf.openFile(sourceFile);
-                                    });
-                            });
-                        }
-                    }
-                }
-
-                if (hasBacklinks) {
-                    menu.addSeparator();
-                }
-
-                // 2. Copy path submenu
-                menu.addItem((item) => {
-                    item.setTitle("Copy path");
-                    item.setIcon("link");
-                    if (typeof item.setSubmenu === "function") {
-                        const submenu = item.setSubmenu();
-                        submenu.addItem((subItem) => {
-                            subItem.setTitle("as Obsidian URL")
-                                .setIcon("link")
-                                .onClick(() => {
-                                    const url = `obsidian://open?vault=${encodeURIComponent(this.app.vault.getName())}&file=${encodeURIComponent(file.path)}`;
-                                    navigator.clipboard.writeText(url);
-                                });
-                        });
-                        submenu.addItem((subItem) => {
-                            subItem.setTitle("from vault folder")
-                                .setIcon("folder")
-                                .onClick(() => {
-                                    navigator.clipboard.writeText(file.path);
-                                });
-                        });
-                        submenu.addItem((subItem) => {
-                            subItem.setTitle("from system root")
-                                .setIcon("hard-drive")
-                                .onClick(() => {
-                                    const adapter = this.app.vault.adapter;
-                                    const require = window.require;
-                                    const path = require ? require('path') : null;
-                                    let fullPath = "";
-                                    if (path && adapter.getBasePath) {
-                                        fullPath = path.join(adapter.getBasePath(), file.path);
-                                    } else {
-                                        fullPath = adapter.getBasePath ? adapter.getBasePath() + "/" + file.path : file.path;
-                                    }
-                                    navigator.clipboard.writeText(fullPath);
-                                });
-                        });
-                    } else {
-                        // Fallback for older Obsidian versions
-                        item.onClick(() => {
-                            navigator.clipboard.writeText(file.path);
-                        });
-                    }
-                });
-
-                menu.addSeparator();
-
-                // 3. System actions
-                menu.addItem((item) => {
-                    item.setTitle("Open in default app")
-                        .setIcon("arrow-up-right")
-                        .onClick(() => {
-                            this.app.openWithDefaultApp(file.path);
-                        });
-                });
-
-                menu.addItem((item) => {
-                    item.setTitle("Show in system explorer")
-                        .setIcon("folder")
-                        .onClick(() => {
-                            this.app.showInFolder(file.path);
-                        });
-                });
-
-                menu.addItem((item) => {
-                    item.setTitle("Reveal file in navigation")
-                        .setIcon("compass")
-                        .onClick(() => {
-                            const explorerPlugin = this.app.internalPlugins.getPluginById("file-explorer");
-                            if (explorerPlugin && explorerPlugin.instance) {
-                                explorerPlugin.instance.revealInFolder(file);
-                            }
-                        });
-                });
-
-                menu.addSeparator();
-
-                // 4. Rename & Delete
-                menu.addItem((item) => {
-                    item.setTitle("Rename...")
-                        .setIcon("pencil")
-                        .onClick(() => {
-                            new RenameModal(this.app, file, this).open();
-                        });
-                });
-
-                menu.addItem((item) => {
-                    item.setTitle("Delete")
-                        .setIcon("trash")
-                        .onClick(async () => {
-                            await this.app.vault.trash(file, true);
-                            this.renderGallery();
-                        });
-                });
-
-                menu.showAtMouseEvent(e);
+                this.showContextMenu(file, e);
             });
         }
 
@@ -397,6 +292,327 @@ class GalleryView extends obsidian.ItemView {
                 }
             });
         });
+    }
+
+    showContextMenu(file, e) {
+        e.preventDefault();
+        const menu = new obsidian.Menu();
+
+        // Open in new tab (at the top)
+        menu.addItem((item) => {
+            item.setTitle("Open in new tab")
+                .setIcon("file-plus")
+                .onClick(async () => {
+                    const leaf = this.app.workspace.getLeaf('tab');
+                    await leaf.openFile(file);
+                });
+        });
+
+        menu.addSeparator();
+
+        // 1. List of md file names that contain this image
+        const resolvedLinks = this.app.metadataCache.resolvedLinks;
+        let hasBacklinks = false;
+        for (const sourcePath in resolvedLinks) {
+            if (file.path in resolvedLinks[sourcePath]) {
+                const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
+                if (sourceFile instanceof obsidian.TFile && sourceFile.extension === 'md') {
+                    hasBacklinks = true;
+                    menu.addItem((item) => {
+                        item.setTitle(`📄 ${sourceFile.basename}`)
+                            .setIcon("file-text")
+                            .onClick(async () => {
+                                const leaf = this.app.workspace.getLeaf(false);
+                                await leaf.openFile(sourceFile);
+                            });
+                    });
+                }
+            }
+        }
+
+        if (hasBacklinks) {
+            menu.addSeparator();
+        }
+
+        // 2. Copy path submenu
+        menu.addItem((item) => {
+            item.setTitle("Copy path");
+            item.setIcon("link");
+            if (typeof item.setSubmenu === "function") {
+                const submenu = item.setSubmenu();
+                submenu.addItem((subItem) => {
+                    subItem.setTitle("as Obsidian URL")
+                        .setIcon("link")
+                        .onClick(() => {
+                            const url = `obsidian://open?vault=${encodeURIComponent(this.app.vault.getName())}&file=${encodeURIComponent(file.path)}`;
+                            navigator.clipboard.writeText(url);
+                        });
+                });
+                submenu.addItem((subItem) => {
+                    subItem.setTitle("from vault folder")
+                        .setIcon("folder")
+                        .onClick(() => {
+                            navigator.clipboard.writeText(file.path);
+                        });
+                });
+                submenu.addItem((subItem) => {
+                    subItem.setTitle("from system root")
+                        .setIcon("hard-drive")
+                        .onClick(() => {
+                            const adapter = this.app.vault.adapter;
+                            const require = window.require;
+                            const path = require ? require('path') : null;
+                            let fullPath = "";
+                            if (path && adapter.getBasePath) {
+                                fullPath = path.join(adapter.getBasePath(), file.path);
+                            } else {
+                                fullPath = adapter.getBasePath ? adapter.getBasePath() + "/" + file.path : file.path;
+                            }
+                            navigator.clipboard.writeText(fullPath);
+                        });
+                });
+            } else {
+                // Fallback for older Obsidian versions
+                item.onClick(() => {
+                    navigator.clipboard.writeText(file.path);
+                });
+            }
+        });
+
+        menu.addSeparator();
+
+        // 3. System actions
+        menu.addItem((item) => {
+            item.setTitle("Open in default app")
+                .setIcon("arrow-up-right")
+                .onClick(() => {
+                    this.app.openWithDefaultApp(file.path);
+                });
+        });
+
+        menu.addItem((item) => {
+            item.setTitle("Show in system explorer")
+                .setIcon("folder")
+                .onClick(() => {
+                    this.app.showInFolder(file.path);
+                });
+        });
+
+        menu.addItem((item) => {
+            item.setTitle("Reveal file in navigation")
+                .setIcon("compass")
+                .onClick(() => {
+                    const explorerPlugin = this.app.internalPlugins.getPluginById("file-explorer");
+                    if (explorerPlugin && explorerPlugin.instance) {
+                        explorerPlugin.instance.revealInFolder(file);
+                    }
+                });
+        });
+
+        menu.addSeparator();
+
+        // 4. Rename & Delete
+        menu.addItem((item) => {
+            item.setTitle("Rename...")
+                .setIcon("pencil")
+                .onClick(() => {
+                    new RenameModal(this.app, file, this).open();
+                });
+        });
+
+        menu.addItem((item) => {
+            item.setTitle("Delete")
+                .setIcon("trash")
+                .onClick(async () => {
+                    await this.app.vault.trash(file, true);
+                    this.renderGallery();
+                });
+        });
+
+        menu.showAtMouseEvent(e);
+    }
+
+    openLightbox(initialFile, visibleImages) {
+        let currentIndex = visibleImages.indexOf(initialFile);
+        if (currentIndex === -1) return;
+
+        let zoomLevel = 1.0;
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let translateX = 0, translateY = 0;
+        let lastSwitchTime = 0;
+
+        // Create overlay element
+        const overlay = document.createElement('div');
+        overlay.addClass('gallery-lightbox-overlay');
+
+        // Close button
+        const closeBtn = overlay.createEl('div', { cls: 'gallery-lightbox-close', text: '×' });
+
+        // Image container
+        const imgContainer = overlay.createDiv('gallery-lightbox-container');
+        const imgEl = imgContainer.createEl('img', { cls: 'gallery-lightbox-img' });
+
+        // Thumbnail strip container
+        const stripContainer = overlay.createDiv('gallery-lightbox-strip');
+        const thumbEls = [];
+
+        visibleImages.forEach((file, index) => {
+            const thumbImg = stripContainer.createEl('img', {
+                cls: 'gallery-lightbox-strip-item'
+            });
+            thumbImg.src = this.app.vault.getResourcePath(file);
+            thumbImg.addEventListener('click', (e) => {
+                e.stopPropagation();
+                currentIndex = index;
+                updateImage();
+            });
+            thumbEls.push(thumbImg);
+        });
+
+        const updateTransform = () => {
+            imgEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${zoomLevel})`;
+        };
+
+        // Function to update the image in the lightbox
+        const updateImage = () => {
+            const file = visibleImages[currentIndex];
+            imgEl.src = this.app.vault.getResourcePath(file);
+            zoomLevel = 1.0;
+            translateX = 0;
+            translateY = 0;
+            updateTransform();
+            imgEl.style.cursor = 'zoom-in';
+
+            // Highlight and center active thumbnail
+            thumbEls.forEach((thumbEl, idx) => {
+                if (idx === currentIndex) {
+                    thumbEl.addClass('is-active');
+                    setTimeout(() => {
+                        thumbEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                    }, 50);
+                } else {
+                    thumbEl.removeClass('is-active');
+                }
+            });
+        };
+
+        const setZoom = (newZoom) => {
+            zoomLevel = newZoom;
+            if (zoomLevel <= 1.0) {
+                zoomLevel = 1.0;
+                translateX = 0;
+                translateY = 0;
+                imgEl.style.cursor = 'zoom-in';
+            } else {
+                imgEl.style.cursor = 'grab';
+            }
+            updateTransform();
+        };
+
+        // Keyboard navigation
+        const handleKeyDown = (e) => {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                currentIndex = (currentIndex - 1 + visibleImages.length) % visibleImages.length;
+                updateImage();
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                currentIndex = (currentIndex + 1) % visibleImages.length;
+                updateImage();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setZoom(Math.min(zoomLevel + 0.15, 5.0));
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setZoom(Math.max(zoomLevel - 0.15, 0.2));
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeLightbox();
+            }
+        };
+
+        // Mouse wheel navigation
+        const handleWheel = (e) => {
+            e.preventDefault();
+            const now = Date.now();
+            if (now - lastSwitchTime < 250) return;
+
+            if (e.deltaY > 0) {
+                currentIndex = (currentIndex + 1) % visibleImages.length;
+                lastSwitchTime = now;
+                updateImage();
+            } else if (e.deltaY < 0) {
+                currentIndex = (currentIndex - 1 + visibleImages.length) % visibleImages.length;
+                lastSwitchTime = now;
+                updateImage();
+            }
+        };
+
+        // Context menu in lightbox
+        const handleContextMenu = (e) => {
+            const file = visibleImages[currentIndex];
+            this.showContextMenu(file, e);
+        };
+
+        // Close lightbox
+        const closeLightbox = () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            overlay.remove();
+        };
+
+        // Drag to pan setup
+        const handleMouseDown = (e) => {
+            if (e.button !== 0) return; // Left click only
+            if (zoomLevel > 1.0) {
+                isDragging = true;
+                startX = e.clientX - translateX;
+                startY = e.clientY - translateY;
+                imgEl.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+        };
+
+        const handleMouseMove = (e) => {
+            if (!isDragging) return;
+            translateX = e.clientX - startX;
+            translateY = e.clientY - startY;
+            updateTransform();
+        };
+
+        const handleMouseUp = () => {
+            if (isDragging) {
+                isDragging = false;
+                imgEl.style.cursor = 'grab';
+            }
+        };
+
+        closeBtn.onclick = closeLightbox;
+        overlay.onclick = (e) => {
+            if (e.target === overlay || e.target === imgContainer) {
+                closeLightbox();
+            }
+        };
+
+        // Attach events
+        window.addEventListener('keydown', handleKeyDown);
+        overlay.addEventListener('wheel', handleWheel, { passive: false });
+        imgEl.addEventListener('contextmenu', handleContextMenu);
+        imgEl.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+
+        // Also allow right click on container/overlay just in case
+        overlay.addEventListener('contextmenu', (e) => {
+            if (e.target === overlay || e.target === imgContainer) {
+                handleContextMenu(e);
+            }
+        });
+
+        document.body.appendChild(overlay);
+        updateImage();
     }
 }
 
@@ -435,6 +651,28 @@ class FolderAsGallerySettingTab extends obsidian.PluginSettingTab {
                     this.plugin.removeGalleryIcons();
                     this.plugin.injectGalleryIcons();
                 }));
+
+        new obsidian.Setting(containerEl)
+            .setName('Hide Icon in Folders Without Images')
+            .setDesc('Hide the gallery icon in the file explorer for folders that do not directly contain any images or videos.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.hideNoImages)
+                .onChange(async (value) => {
+                    this.plugin.settings.hideNoImages = value;
+                    await this.plugin.saveSettings();
+                    this.plugin.removeGalleryIcons();
+                    this.plugin.injectGalleryIcons();
+                }));
+
+        new obsidian.Setting(containerEl)
+            .setName('Click to Zoom Image')
+            .setDesc('Clicking on an image in the gallery will open a zoomable focus preview overlay instead of opening the file.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.clickToZoom)
+                .onChange(async (value) => {
+                    this.plugin.settings.clickToZoom = value;
+                    await this.plugin.saveSettings();
+                }));
     }
 }
 
@@ -457,6 +695,16 @@ class FolderAsGalleryPlugin extends obsidian.Plugin {
         // Re-inject on file explorer updates (like folder open/close)
         // file-explorer is not a documented event, but we can use layout-change or just observe
         this.registerEvent(this.app.workspace.on('layout-change', () => {
+            this.injectGalleryIcons();
+        }));
+
+        this.registerEvent(this.app.vault.on('create', () => {
+            this.injectGalleryIcons();
+        }));
+        this.registerEvent(this.app.vault.on('delete', () => {
+            this.injectGalleryIcons();
+        }));
+        this.registerEvent(this.app.vault.on('rename', () => {
             this.injectGalleryIcons();
         }));
 
@@ -490,16 +738,42 @@ class FolderAsGalleryPlugin extends obsidian.Plugin {
         }
     }
 
+    folderHasImages(folderPath) {
+        const folder = this.app.vault.getAbstractFileByPath(folderPath);
+        if (!folder || !(folder instanceof obsidian.TFolder)) return false;
+        
+        const mediaExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'];
+        const videoExtensions = ['mp4', 'webm', 'mov'];
+        
+        return folder.children.some(child => {
+            if (child instanceof obsidian.TFile) {
+                const ext = child.extension.toLowerCase();
+                return mediaExtensions.includes(ext) || videoExtensions.includes(ext);
+            }
+            return false;
+        });
+    }
+
     injectGalleryIcons() {
         // Use direct DOM query to be completely robust and independent of internal API loading states
         const folderTitles = document.querySelectorAll('.nav-folder-title');
         folderTitles.forEach(titleEl => {
-            // Skip if already added
-            if (titleEl.querySelector('.folder-gallery-icon')) return;
-
             const folderPath = titleEl.getAttribute('data-path');
             // Root folder might be '/' or empty, we usually want actual folders
             if (!folderPath || folderPath === '/') return;
+
+            const hasImages = !this.settings.hideNoImages || this.folderHasImages(folderPath);
+            const existingIcon = titleEl.querySelector('.folder-gallery-icon');
+
+            if (!hasImages) {
+                if (existingIcon) {
+                    existingIcon.remove();
+                }
+                return;
+            }
+
+            // Skip if already added
+            if (existingIcon) return;
 
             const iconEl = document.createElement('div');
             iconEl.addClass('folder-gallery-icon');

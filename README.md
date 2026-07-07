@@ -8,6 +8,10 @@ An Obsidian plugin that allows you to view the contents of any folder as a beaut
 
 - **File Explorer Integration:** Adds a convenient gallery icon next to every folder in your navigation pane.
 - **Media Support:** Displays thumbnails for all images (`.png`, `.jpg`, `.gif`, etc.) and videos (`.mp4`, `.webm` with hover-to-play preview!).
+- **Optional Click to Zoom Focus:** Open a premium fullscreen lightbox overlay to focus on images instead of opening the file immediately.
+  * **Smooth Navigation**: Cycle through images with Arrow keys (`Left`/`Right`) or Mouse Wheel.
+  * **Interactive Zoom**: Zoom in/out with Arrow keys (`Up`/`Down`) and click-and-drag to pan around the image.
+  * **Filmstrip Preview**: View all folder images in a small thumbnail strip at the bottom. The focused image thumbnail stays highlighted and is automatically kept centered.
 - **Smart Note Preview (`.md` files):** If a folder contains markdown notes, the plugin will automatically find the first image inside the note and use it as a cover thumbnail! If no image is found, it renders a neat text preview of the note.
 - **Breadcrumb Navigation:** Tab titles display the full folder path (e.g., `Parent > Child`) so you always know exactly which folder you are browsing.
 - **Live Search Filter:** Includes a fixed search bar at the top of the gallery to quickly filter files by name.
@@ -20,7 +24,7 @@ An Obsidian plugin that allows you to view the contents of any folder as a beaut
 1. Hover over any folder in the standard Obsidian File Explorer (left pane).
 2. Click the **Gallery Icon** that appears on the right side of the folder name.
 3. A new tab will open displaying all media and notes inside that folder as a visual grid.
-4. Click on any thumbnail to open the actual file in Obsidian.
+4. Click on any thumbnail to open the actual file (or preview it in zoom focus mode).
 5. Use the **search bar** at the top of the gallery to filter files instantly.
 
 ### ⚙️ Settings
@@ -28,6 +32,7 @@ An Obsidian plugin that allows you to view the contents of any folder as a beaut
 You can customize the plugin behavior in **Settings > Community Plugins > Folder as Gallery**:
 - **Thumbnail Size (px):** Use the slider to increase or decrease the size of the gallery thumbnails (100px - 500px).
 - **Force Icon to Far Right:** Enable this if the gallery icon overlaps or conflicts with elements from other plugins.
+- **Click to Zoom Image:** Enable this option to zoom and preview images in a fullscreen overlay with keyboard and scroll-wheel navigation, instead of opening them as files.
 
 ## 📦 Manual Installation
 
@@ -37,6 +42,16 @@ You can customize the plugin behavior in **Settings > Community Plugins > Folder
 4. Reload Obsidian and enable the plugin in **Settings > Community Plugins**.
 
 ## 📝 Release Notes
+
+### v1.0.2
+- **New Feature: Click to Zoom Focus Mode** (Optional)
+  - Zoom and preview images in a fullscreen modal with backdrop blur.
+  - Cycle through images with Arrow keys (`Left`/`Right`) or Mouse Wheel.
+  - Rate-limit wheel scroll swapping to prevent skipping multiple images.
+  - Zoom with Arrow keys (`Up`/`Down`) and click-and-drag to pan around the image.
+  - Lightbox Thumbnail Strip: View other images at the bottom, centered on the active image. Click any thumbnail to jump to it.
+- **New Feature: Open in New Tab**
+  - Added "Open in new tab" at the top of right-click context menus in both grid and lightbox views.
 
 ### v1.0.1
 - **New Feature:** Added a comprehensive Right-Click Context Menu for gallery cards!

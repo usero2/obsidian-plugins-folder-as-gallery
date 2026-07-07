@@ -1,4 +1,6 @@
 {
   "thumbnailSize": 200,
-  "forceRight": true
+  "forceRight": true,
+  "hideNoImages": true,
+  "clickToZoom": true
 }
